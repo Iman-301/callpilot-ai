@@ -8,3 +8,4 @@ venv/
 Thumbs.db
 *.log
 .pytest_cache/
+frontend/node_modules/

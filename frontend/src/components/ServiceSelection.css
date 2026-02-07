@@ -1,0 +1,66 @@
+.service-selection {
+  margin-bottom: 2rem;
+}
+
+.service-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.service-option {
+  padding: 1rem 2rem;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.service-option::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(102, 126, 234, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.service-option:hover::before {
+  width: 200px;
+  height: 200px;
+}
+
+.service-option:hover {
+  border-color: rgba(102, 126, 234, 0.5);
+  color: #667eea;
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+}
+
+.service-option.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.service-option.active::before {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.service-option.active:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(102, 126, 234, 0.5);
+}

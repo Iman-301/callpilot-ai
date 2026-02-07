@@ -3,13 +3,15 @@ import os
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, stream_with_context
+from flask_cors import CORS
 
 from swarm.orchestrator import run_swarm_sync, stream_swarm_sync
 
 APP_ROOT = Path(__file__).resolve().parent
 PROVIDERS_PATH = APP_ROOT / "data" / "providers.json"
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='data')
+CORS(app)  # Enable CORS for all routes
 
 
 def load_providers():
@@ -42,6 +44,18 @@ def index():
     )
 
 
+@app.get("/data/calendar.json")
+def get_calendar():
+    """Serve calendar data for frontend"""
+    calendar_path = APP_ROOT / "data" / "calendar.json"
+    try:
+        with open(calendar_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return jsonify(data)
+    except FileNotFoundError:
+        return jsonify({"user_calendar": {"busy_slots": []}}), 404
+
+
 @app.post("/swarm")
 def swarm():
     payload = request.get_json(silent=True) or {}
@@ -65,11 +79,11 @@ def swarm_stream():
         return jsonify({"error": "no providers available"}), 400
 
     def event_stream():
+        # Output NDJSON format for frontend compatibility
         for event in stream_swarm_sync(payload, providers):
-            data = json.dumps(event)
-            yield f"event: {event['type']}\ndata: {data}\n\n"
+            yield json.dumps(event) + "\n"
 
-    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+    return Response(stream_with_context(event_stream()), mimetype="application/x-ndjson")
 
 
 if __name__ == "__main__":
