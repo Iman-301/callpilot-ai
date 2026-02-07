@@ -33,6 +33,16 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.get("/")
+def index():
+    return jsonify(
+        {
+            "service": "CallPilot Swarm Orchestrator",
+            "endpoints": ["/health", "/swarm"],
+        }
+    )
+
+
 @app.post("/swarm")
 def swarm():
     payload = request.get_json(silent=True) or {}
