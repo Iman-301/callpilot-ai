@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
 import ProviderCard from './ProviderCard';
 import './SwarmVisualization.css';
 
 const SwarmVisualization = ({ providers, results, isActive }) => {
+  const { t } = useLanguage();
   const [providerStates, setProviderStates] = useState({});
 
   useEffect(() => {
@@ -43,7 +45,7 @@ const SwarmVisualization = ({ providers, results, isActive }) => {
   if (!providers || providers.length === 0) {
     return (
       <div className="swarm-visualization empty">
-        <p>No providers to call</p>
+        <p>{t('swarm.noProviders')}</p>
       </div>
     );
   }

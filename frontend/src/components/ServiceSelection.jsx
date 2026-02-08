@@ -1,18 +1,20 @@
 import React from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
 import './ServiceSelection.css';
 
 const ServiceSelection = ({ value, onChange }) => {
+  const { t } = useLanguage();
   const services = [
-    { value: 'dentist', label: 'Dentist' },
+    { value: 'dentist', label: t('services.dentist') },
     { value: 'auto_repair', label: 'Auto Repair' },
-    { value: 'doctor', label: 'Doctor' },
-    { value: 'hairdresser', label: 'Hairdresser' },
+    { value: 'doctor', label: t('services.doctor') },
+    { value: 'hairdresser', label: t('services.hairdresser') },
     { value: 'other', label: 'Other' },
   ];
 
   return (
     <div className="service-selection">
-      <label className="input-label">Service Type</label>
+      <label className="input-label">{t('input.service')}</label>
       <div className="service-options">
         {services.map((service) => (
           <button

@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+APP_ROOT = Path(__file__).resolve().parent
+PROMPTS_PATH = APP_ROOT / "data" / "agent_prompts.json"
+
 try:
 	# Optional ElevenLabs SDK (latest). If missing, we fall back to mock.
 	from elevenlabs.client import ElevenLabs
@@ -28,7 +31,6 @@ try:
 except Exception:  # pragma: no cover - optional dependency
 	genai = None
 
-APP_ROOT = Path(__file__).resolve().parent
 CALENDAR_PATH = APP_ROOT / "data" / "calendar.json"
 
 app = FastAPI(title="CallPilot Voice Agent", version="0.1.0")
@@ -112,6 +114,35 @@ def _pick_slot(
 			continue
 		return slot
 	return None
+
+
+def _load_prompts() -> Dict[str, Dict[str, str]]:
+	"""Load language-specific prompts"""
+	if not PROMPTS_PATH.exists():
+		# Fallback to English if prompts file doesn't exist
+		return {
+			"en": {
+				"greeting": "Thank you for calling. How can we help?",
+				"request_template": "I'd like to book {article} {service}",
+				"request_with_time": "I'd like to book {article} {service} for {window_desc}.",
+				"no_availability": "Sorry, no slots match that request.",
+				"available_slot": "We can do {slot}.",
+				"confirm_booking": "Great, please book it under Alex.",
+				"booking_confirmed": "You're all set for {slot}.",
+				"thanks_no_availability": "Thanks for checking. Please let us know if anything opens up."
+			}
+		}
+	try:
+		with open(PROMPTS_PATH, "r", encoding="utf-8") as handle:
+			return json.load(handle)
+	except Exception:
+		return {}
+
+
+def _get_prompts(language: str = "en") -> Dict[str, str]:
+	"""Get prompts for a specific language, fallback to English"""
+	prompts = _load_prompts()
+	return prompts.get(language, prompts.get("en", {}))
 
 
 def _get_elevenlabs_client() -> Optional["ElevenLabs"]:
@@ -267,15 +298,17 @@ def _collect_agent_lines(transcript: List[str]) -> List[str]:
 	return [line for line in transcript if line.startswith("Agent:")]
 
 
-def _tts_lines(lines: List[str]) -> Dict[int, str]:
+def _tts_lines(lines: List[str], language: str = "en") -> Dict[int, str]:
 	client = _get_elevenlabs_client()
 	if not client:
 		return {}
 
+	# Use multilingual model - it automatically detects language from text
 	voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
 	audio_map: Dict[int, str] = {}
 	for idx, line in enumerate(lines):
 		# Generate short audio per agent line for demo purposes.
+		# eleven_multilingual_v2 automatically handles language detection
 		audio = client.text_to_speech.convert(
 			voice_id=voice_id,
 			text=line,
@@ -294,18 +327,30 @@ def health() -> Dict[str, str]:
 def run_agent(payload: AgentRequest) -> Dict[str, Any]:
 	provider = payload.provider
 	request_payload = payload.request
+	language = request_payload.get("language", "en")
+	
 	print(
 		"[agent] request",
-		{"provider": provider.get("name"), "service": request_payload.get("service")},
+		{"provider": provider.get("name"), "service": request_payload.get("service"), "language": language},
 		file=sys.stderr,
 	)
+
+	# Load language-specific prompts
+	prompts = _get_prompts(language)
 
 	availability = provider.get("availability", [])
 	time_window = request_payload.get("time_window")
 	service = request_payload.get("service", "appointment")
 
 	service_clean = str(service).strip() or "appointment"
+	# Language-specific article handling (simplified - could be improved)
 	article = "an" if service_clean[:1].lower() in {"a", "e", "i", "o", "u"} else "a"
+	if language == "es":
+		article = "un" if service_clean[:1].lower() in {"a", "e", "i", "o", "u"} else "una"
+	elif language == "fr":
+		article = "un" if service_clean[:1].lower() in {"a", "e", "i", "o", "u"} else "une"
+	elif language == "de":
+		article = "einen" if service_clean[:1].lower() in {"a", "e", "i", "o", "u"} else "einen"
 
 	window_desc = None
 	if time_window:
@@ -314,18 +359,26 @@ def run_agent(payload: AgentRequest) -> Dict[str, Any]:
 			f"{time_window.get('start', '')} and {time_window.get('end', '')}"
 		).strip()
 
-	request_line = f"Agent: I'd like to book {article} {service_clean}"
+	# Use language-specific prompt template
 	if window_desc:
-		request_line = f"{request_line} for {window_desc}"
-	request_line = f"{request_line}."
+		request_line = prompts.get("request_with_time", "I'd like to book {article} {service} for {window_desc}.").format(
+			article=article, service=service_clean, window_desc=window_desc
+		)
+	else:
+		request_line = prompts.get("request_template", "I'd like to book {article} {service}").format(
+			article=article, service=service_clean
+		)
+	request_line = f"Agent: {request_line}"
 
 	busy_slots = _load_busy_slots()
 	max_turns = int(os.environ.get("RECEPTIONIST_MAX_TURNS", "6"))
 	max_seconds = int(os.environ.get("RECEPTIONIST_MAX_SECONDS", "25"))
 	start_time = time.monotonic()
 
+	# Use language-specific greeting
+	greeting = prompts.get("greeting", "Thank you for calling. How can we help?")
 	transcript = [
-		f"{provider.get('name', 'Provider')}: Thank you for calling. How can we help?",
+		f"{provider.get('name', 'Provider')}: {greeting}",
 		request_line,
 	]
 	history = [request_line]
@@ -369,29 +422,44 @@ def run_agent(payload: AgentRequest) -> Dict[str, Any]:
 	if booked_slot and booked_slot in availability:
 		slot = booked_slot
 
+	provider_name = provider.get('name', 'Provider')
+	greeting = prompts.get("greeting", "Thank you for calling. How can we help?")
+
+	# Update initial greeting in transcript to use language-specific prompt
+	if transcript and transcript[0].startswith(f"{provider_name}:"):
+		transcript[0] = f"{provider_name}: {greeting}"
+
 	if not slot:
-		transcript.append(
-			f"{provider.get('name', 'Provider')}: Sorry, no slots match that request."
-		)
-		transcript.append("Agent: Thanks for checking. Please let us know if anything opens up.")
+		# Use language-specific prompts for final messages if no slot found
+		if "[NO_AVAILABILITY]" not in str(transcript[-1] if transcript else ""):
+			transcript.append(
+				f"{provider_name}: {prompts.get('no_availability', 'Sorry, no slots match that request.')}"
+			)
+		agent_final = prompts.get('thanks_no_availability', 'Thanks for checking. Please let us know if anything opens up.')
+		transcript.append(f"Agent: {agent_final}")
+		print("[agent] completed", {"provider": provider.get("name"), "slot": None, "language": language}, file=sys.stderr)
 		return {
 			"status": "no_availability",
 			"provider": provider,
 			"slot": None,
 			"transcript": transcript,
-			"tts_audio_b64": _tts_lines(_collect_agent_lines(transcript)),
+			"tts_audio_b64": _tts_lines(_collect_agent_lines(transcript), language),
 		}
 
-
-	transcript.append(f"{provider.get('name', 'Provider')}: We can do {slot}.")
-	transcript.append("Agent: Great, please book it under Alex.")
-	transcript.append(f"{provider.get('name', 'Provider')}: You're all set for {slot}.")
-	print("[agent] completed", {"provider": provider.get("name"), "slot": slot}, file=sys.stderr)
+	# Add final confirmation messages if not already in transcript
+	if slot and not any(slot in line for line in transcript):
+		available_msg = prompts.get('available_slot', 'We can do {slot}.').format(slot=slot)
+		transcript.append(f"{provider_name}: {available_msg}")
+		transcript.append(f"Agent: {prompts.get('confirm_booking', 'Great, please book it under Alex.')}")
+		confirmed_msg = prompts.get('booking_confirmed', "You're all set for {slot}.").format(slot=slot)
+		transcript.append(f"{provider_name}: {confirmed_msg}")
+	
+	print("[agent] completed", {"provider": provider.get("name"), "slot": slot, "language": language}, file=sys.stderr)
 
 	return {
 		"status": "ok",
 		"provider": provider,
 		"slot": slot,
 		"transcript": transcript,
-		"tts_audio_b64": _tts_lines(_collect_agent_lines(transcript)),
+		"tts_audio_b64": _tts_lines(_collect_agent_lines(transcript), language),
 	}

@@ -1,0 +1,42 @@
+{
+  "en": {
+    "greeting": "Thank you for calling. How can we help?",
+    "request_template": "I'd like to book {article} {service}",
+    "request_with_time": "I'd like to book {article} {service} for {window_desc}.",
+    "no_availability": "Sorry, no slots match that request.",
+    "available_slot": "We can do {slot}.",
+    "confirm_booking": "Great, please book it under Alex.",
+    "booking_confirmed": "You're all set for {slot}.",
+    "thanks_no_availability": "Thanks for checking. Please let us know if anything opens up."
+  },
+  "es": {
+    "greeting": "Gracias por llamar. ¿En qué podemos ayudarle?",
+    "request_template": "Me gustaría reservar {article} {service}",
+    "request_with_time": "Me gustaría reservar {article} {service} para {window_desc}.",
+    "no_availability": "Lo siento, no hay horarios que coincidan con esa solicitud.",
+    "available_slot": "Podemos hacer {slot}.",
+    "confirm_booking": "Excelente, por favor resérvelo a nombre de Alex.",
+    "booking_confirmed": "Todo listo para {slot}.",
+    "thanks_no_availability": "Gracias por verificar. Por favor avísenos si se abre algo."
+  },
+  "fr": {
+    "greeting": "Merci d'avoir appelé. Comment pouvons-nous vous aider?",
+    "request_template": "Je voudrais réserver {article} {service}",
+    "request_with_time": "Je voudrais réserver {article} {service} pour {window_desc}.",
+    "no_availability": "Désolé, aucun créneau ne correspond à cette demande.",
+    "available_slot": "Nous pouvons faire {slot}.",
+    "confirm_booking": "Parfait, veuillez le réserver au nom d'Alex.",
+    "booking_confirmed": "C'est tout réglé pour {slot}.",
+    "thanks_no_availability": "Merci de vérifier. Veuillez nous informer si quelque chose s'ouvre."
+  },
+  "de": {
+    "greeting": "Vielen Dank für Ihren Anruf. Wie können wir Ihnen helfen?",
+    "request_template": "Ich möchte {article} {service} buchen",
+    "request_with_time": "Ich möchte {article} {service} für {window_desc} buchen.",
+    "no_availability": "Entschuldigung, es gibt keine Termine, die dieser Anfrage entsprechen.",
+    "available_slot": "Wir können {slot} machen.",
+    "confirm_booking": "Großartig, bitte buchen Sie es unter Alex.",
+    "booking_confirmed": "Alles ist für {slot} erledigt.",
+    "thanks_no_availability": "Danke für die Überprüfung. Bitte lassen Sie uns wissen, wenn sich etwas öffnet."
+  }
+}

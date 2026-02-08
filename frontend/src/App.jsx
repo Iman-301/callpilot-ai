@@ -6,6 +6,8 @@ import PreferencesPanel from './components/PreferencesPanel';
 import SwarmVisualization from './components/SwarmVisualization';
 import ResultsPanel from './components/ResultsPanel';
 import ConfirmationCard from './components/ConfirmationCard';
+import LanguageSelector from './components/LanguageSelector';
+import { useLanguage } from './contexts/LanguageContext';
 import { startSwarm } from './services/swarmService';
 import './styles/App.css';
 
@@ -18,6 +20,7 @@ const VIEWS = {
 };
 
 function App() {
+  const { t, language } = useLanguage();
   const [currentView, setCurrentView] = useState(VIEWS.LANDING);
   const [formData, setFormData] = useState({
     service: 'dentist',
@@ -84,6 +87,7 @@ function App() {
         service: formData.service,
         time_window: formData.time_window,
         preferences: formData.preferences,
+        language: language, // Pass language to backend
         limit: 5, // Limit to 5 providers for demo
       };
 
@@ -176,6 +180,7 @@ function App() {
 
   return (
     <div className="app">
+      <LanguageSelector />
       {currentView === VIEWS.LANDING && (
         <LandingPage onStartDemo={handleStartDemo} />
       )}
@@ -183,9 +188,9 @@ function App() {
       {currentView === VIEWS.INPUT && (
         <div className="input-view">
           <div className="input-container">
-            <h1>Book Your Appointment</h1>
+            <h1>{t('input.title')}</h1>
             <p className="input-subtitle">
-              Fill in your preferences and let AI find the best match
+              {t('input.subtitle')}
             </p>
 
             <div className="input-form">
@@ -216,14 +221,14 @@ function App() {
                   className="back-button"
                   onClick={handleBackToStart}
                 >
-                  Back
+                  {t('input.back')}
                 </button>
                 <button
                   className="start-swarm-button"
                   onClick={handleStartSwarm}
                   disabled={!formData.time_window}
                 >
-                  Start Swarm Call
+                  {t('input.startSwarm')}
                 </button>
               </div>
             </div>
@@ -241,7 +246,7 @@ function App() {
                 setCurrentView(VIEWS.INPUT);
               }}
             >
-              ← Back
+              ← {t('input.back')}
             </button>
             <SwarmVisualization
               providers={providers}
@@ -264,7 +269,7 @@ function App() {
               className="back-button-top"
               onClick={handleBackToStart}
             >
-              ← Start Over
+              ← {t('results.startOver')}
             </button>
             <ResultsPanel
               ranked={rankedResults}
@@ -282,7 +287,7 @@ function App() {
               className="back-button-top"
               onClick={handleBackToResults}
             >
-              ← Back to Results
+              ← {t('confirmation.backToResults')}
             </button>
             <ConfirmationCard
               appointment={selectedAppointment}
