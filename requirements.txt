@@ -1,5 +1,7 @@
 Flask==3.0.2
+flask-cors==4.0.0
 requests==2.31.0
 fastapi==0.115.8
 uvicorn==0.30.6
 elevenlabs==1.50.2
+python-dotenv==1.0.0
