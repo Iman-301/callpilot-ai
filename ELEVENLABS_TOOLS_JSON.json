@@ -1,0 +1,211 @@
+{
+  "lookup_booking": {
+    "type": "webhook",
+    "name": "lookup_booking",
+    "description": "Look up an existing booking by confirmation ID or phone number. Use this when a user wants to reschedule or cancel an appointment. Ask for their confirmation ID first, or phone number if they don't have it.",
+    "api_schema": {
+      "url": "https://honied-follicular-avelina.ngrok-free.dev/lookup",
+      "method": "GET",
+      "path_params_schema": [],
+      "query_params_schema": [
+        {
+          "id": "confirmation_id",
+          "name": "confirmation_id",
+          "type": "string",
+          "required": false,
+          "description": "Confirmation ID of the appointment to look up",
+          "dynamic_variable": "confirmation_id",
+          "constant_value": ""
+        },
+        {
+          "id": "phone_number",
+          "name": "phone_number",
+          "type": "string",
+          "required": false,
+          "description": "Phone number to search for (if confirmation ID is not available)",
+          "dynamic_variable": "phone_number",
+          "constant_value": ""
+        }
+      ],
+      "request_body_schema": null,
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 120,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "tool_error_handling_mode": "auto"
+  },
+  "cancel_appointment": {
+    "type": "webhook",
+    "name": "cancel_appointment",
+    "description": "Cancel an existing appointment. Only call this after the user has confirmed they want to cancel. Before cancelling, offer one alternative time slot. If they insist on cancelling, call this tool and confirm the cancellation clearly. Say: 'Your appointment on [Date] at [Time] has been cancelled. You'll receive a confirmation text shortly.'",
+    "api_schema": {
+      "url": "https://honied-follicular-avelina.ngrok-free.dev/cancel",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "type": "object",
+        "properties": {
+          "confirmation_id": {
+            "type": "string",
+            "description": "Confirmation ID of the appointment to cancel"
+          }
+        },
+        "required": ["confirmation_id"]
+      },
+      "request_headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 120,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "tool_error_handling_mode": "auto"
+  },
+  "reschedule_appointment": {
+    "type": "webhook",
+    "name": "reschedule_appointment",
+    "description": "Reschedule an existing appointment to a new date and time. This is an atomic action - it will only move the appointment if the new slot is available. Never cancel the old appointment separately. Always verify the new time slot is available using check_availability before calling this tool. After rescheduling, summarize the change clearly: 'I've moved your [Old Day] [Old Time] slot to [New Day] at [New Time]. You'll get a new text confirmation shortly.'",
+    "api_schema": {
+      "url": "https://honied-follicular-avelina.ngrok-free.dev/reschedule",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "type": "object",
+        "properties": {
+          "confirmation_id": {
+            "type": "string",
+            "description": "Confirmation ID of the appointment to reschedule"
+          },
+          "new_date": {
+            "type": "string",
+            "description": "New date in ISO format (YYYY-MM-DD), e.g., '2026-02-10'"
+          },
+          "new_time": {
+            "type": "string",
+            "description": "New time in HH:MM format, e.g., '14:00'"
+          }
+        },
+        "required": ["confirmation_id", "new_date", "new_time"]
+      },
+      "request_headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 120,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "tool_error_handling_mode": "auto"
+  },
+  "check_availability": {
+    "type": "webhook",
+    "name": "check_availability",
+    "description": "Check available time slots for a specific date. Use this tool BEFORE suggesting any specific date or time to the user. The date must be provided in ISO format (YYYY-MM-DD). This tool will return a list of available time slots for the requested date, and if no slots are available, it will provide the two closest alternative dates with available times. Always say 'One second, checking the calendar...' or 'Let me check the calendar for you...' BEFORE calling this tool.",
+    "api_schema": {
+      "url": "https://honied-follicular-avelina.ngrok-free.dev/availability/{date}",
+      "method": "GET",
+      "path_params_schema": [
+        {
+          "name": "date",
+          "type": "string",
+          "required": true,
+          "description": "Date in ISO format (YYYY-MM-DD), e.g., '2026-02-10'"
+        }
+      ],
+      "query_params_schema": [],
+      "request_body_schema": null,
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 120,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "tool_error_handling_mode": "auto"
+  },
+  "book_appointment": {
+    "type": "webhook",
+    "name": "book_appointment",
+    "description": "Book an appointment for a specific date, time, and service. Only call this tool AFTER confirming with the user. You must recap the details before booking: 'Okay, just to confirm, I'm booking your [Service] for [Date] at [Time]. Is that correct?' Only proceed with booking after the user confirms.",
+    "api_schema": {
+      "url": "https://honied-follicular-avelina.ngrok-free.dev/book",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Date in ISO format (YYYY-MM-DD), e.g., '2026-02-10'"
+          },
+          "time": {
+            "type": "string",
+            "description": "Time in HH:MM format, e.g., '10:00'"
+          },
+          "service": {
+            "type": "string",
+            "description": "Service type (e.g., 'consultation', 'follow-up', 'check-up', 'appointment')"
+          }
+        },
+        "required": ["date", "time", "service"]
+      },
+      "request_headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 120,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "tool_error_handling_mode": "auto"
+  }
+}
