@@ -5,3 +5,5 @@ fastapi==0.115.8
 uvicorn==0.30.6
 elevenlabs==1.50.2
 python-dotenv==1.0.0
+supabase==2.3.4
+postgrest==0.13.1

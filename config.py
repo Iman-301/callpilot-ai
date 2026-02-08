@@ -16,6 +16,12 @@ class Config:
     # ElevenLabs Configuration
     ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
     ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID")
+    ELEVENLABS_BRANCH_ID = os.getenv("ELEVENLABS_BRANCH_ID", "agtbrch_7001kgwyx555fwy9mkx0aqxz1g12")  # Default branch ID
+    
+    # Supabase Configuration
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # Optional, for admin operations
     
     # Business Configuration
     BUSINESS_NAME = os.getenv("BUSINESS_NAME", "CallPilot Services")
