@@ -1,12 +1,13 @@
 import base64
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 try:
 	# Optional ElevenLabs SDK (latest). If missing, we fall back to text-only.
@@ -134,6 +135,11 @@ def health() -> Dict[str, str]:
 def run_agent(payload: AgentRequest) -> Dict[str, Any]:
 	provider = payload.provider
 	request_payload = payload.request
+	print(
+		"[agent] request",
+		{"provider": provider.get("name"), "service": request_payload.get("service")},
+		file=sys.stderr,
+	)
 
 	availability = provider.get("availability", [])
 	time_window = request_payload.get("time_window")
