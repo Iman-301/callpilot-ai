@@ -7,21 +7,32 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
 from fastapi import FastAPI
 from pydantic import BaseModel
+from dotenv import load_dotenv
+load_dotenv() 
 
-try:
-	# Optional ElevenLabs SDK (latest). If missing, we fall back to mock.
-	from elevenlabs.client import ElevenLabs
-	from elevenlabs.conversational_ai.conversation import (
+from elevenlabs.client import ElevenLabs
+from elevenlabs.conversational_ai.conversation import (
 		Conversation,
 		ConversationInitiationData,
+		AudioInterface,
 	)
-except Exception:  # pragma: no cover - optional dependency
-	ElevenLabs = None
-	Conversation = None
-	ConversationInitiationData = None
+
+
+class NoOpAudioInterface(AudioInterface):
+	def start(self, input_callback):
+		pass
+
+	def stop(self):
+		pass
+
+	def output(self, audio):
+		pass
+
+	def interrupt(self):
+		pass
+
 
 try:
 	import google.generativeai as genai
@@ -126,12 +137,12 @@ def _get_gemini_model():
 	if not api_key or genai is None:
 		return None
 	genai.configure(api_key=api_key)
-	model_name = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+	model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 	return genai.GenerativeModel(model_name)
 
 
 def _debug_enabled() -> bool:
-	return os.environ.get("AGENT_DEBUG", "0") == "1"
+	return True
 
 
 def _fallback_receptionist_reply(availability: List[str]) -> str:
@@ -176,10 +187,15 @@ def _call_elevenlabs_agent(message: str) -> Optional[str]:
 
 	responses: List[str] = []
 	ready = threading.Event()
+	connected = threading.Event()
 
 	def _on_agent_response(response: str) -> None:
 		responses.append(str(response))
 		ready.set()
+
+	def _on_user_transcript(transcript: str) -> None:
+		# Fires when the server echoes back the user message, meaning ws is live.
+		connected.set()
 
 	config = ConversationInitiationData(
 		conversation_config_override={"conversation": {"text_only": True}}
@@ -190,16 +206,34 @@ def _call_elevenlabs_agent(message: str) -> Optional[str]:
 		agent_id,
 		requires_auth=True,
 		config=config,
+		audio_interface=NoOpAudioInterface(),
 		callback_agent_response=_on_agent_response,
+		callback_user_transcript=_on_user_transcript,
 	)
 
 	try:
 		if _debug_enabled():
 			print("[agent] elevenlabs send", {"agent_id": agent_id}, file=sys.stderr)
 		conversation.start_session()
+
+		# Wait for the WebSocket connection to be established in the background thread.
+		for _ in range(20):
+			if conversation._ws is not None:
+				break
+			time.sleep(0.25)
+
+		if conversation._ws is None:
+			print("[agent] elevenlabs error: websocket did not connect in time", file=sys.stderr)
+			conversation.end_session()
+			return None
+
 		conversation.send_user_message(message)
 	except Exception as exc:
 		print("[agent] elevenlabs error", str(exc), file=sys.stderr)
+		try:
+			conversation.end_session()
+		except Exception:
+			pass
 		return None
 
 	deadline = time.monotonic() + 10
@@ -207,11 +241,15 @@ def _call_elevenlabs_agent(message: str) -> Optional[str]:
 		if ready.wait(timeout=0.2):
 			break
 
-	if responses:
-		if _debug_enabled():
-			print("[agent] elevenlabs response", responses[-1], file=sys.stderr)
-		return responses[-1]
-	return None
+	result = responses[-1] if responses else None
+	try:
+		conversation.end_session()
+	except Exception:
+		pass
+
+	if result and _debug_enabled():
+		print("[agent] elevenlabs response", result, file=sys.stderr)
+	return result
 
 
 def _call_gemini_receptionist(
@@ -239,6 +277,7 @@ def _call_gemini_receptionist(
 		"You are a receptionist for the provider listed below. "
 		"You must only offer times in the availability list and avoid busy slots. "
 		"Respond with one short receptionist reply. "
+		"If user didn't specify end time, assume they want to book for the one hour slot after the start time."
 		"If you confirm a booking, append [BOOKED: <slot>] with the slot you booked. "
 		"If no slot is possible, append [NO_AVAILABILITY].\n\n"
 		f"Provider: {provider.get('name')}\n"
@@ -268,21 +307,25 @@ def _collect_agent_lines(transcript: List[str]) -> List[str]:
 
 
 def _tts_lines(lines: List[str]) -> Dict[int, str]:
-	client = _get_elevenlabs_client()
-	if not client:
-		return {}
+	# User requested text-only responses. Skipping TTS generation to avoid API concurrency limits.
+	return {}
 
-	voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
-	audio_map: Dict[int, str] = {}
-	for idx, line in enumerate(lines):
-		# Generate short audio per agent line for demo purposes.
-		audio = client.text_to_speech.convert(
-			voice_id=voice_id,
-			text=line,
-			model_id="eleven_multilingual_v2",
-		)
-		audio_map[idx] = base64.b64encode(audio).decode("ascii")
-	return audio_map
+	# client = _get_elevenlabs_client()
+	# if not client:
+	# 	return {}
+
+	# voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+	# audio_map: Dict[int, str] = {}
+	# for idx, line in enumerate(lines):
+	# 	# Generate short audio per agent line for demo purposes.
+	# 	audio_iterator = client.text_to_speech.convert(
+	# 		voice_id=voice_id,
+	# 		text=line,
+	# 		model_id="eleven_multilingual_v2",
+	# 	)
+	# 	audio_bytes = b"".join(audio_iterator)
+	# 	audio_map[idx] = base64.b64encode(audio_bytes).decode("ascii")
+	# return audio_map
 
 
 @app.get("/health")
@@ -353,17 +396,23 @@ def run_agent(payload: AgentRequest) -> Dict[str, Any]:
 		)
 		history.append(f"{provider.get('name', 'Provider')}: {_strip_markers(receptionist_reply)}")
 
-		if "[NO_AVAILABILITY]" in receptionist_reply or booked_slot:
-			break
+		conversation_done = "[NO_AVAILABILITY]" in receptionist_reply or bool(booked_slot)
 
-		prompt = "\n".join(history) + "\nAgent:"
-		agent_reply = _call_elevenlabs_agent(prompt)
+		# Send only the receptionist's latest reply to the ElevenLabs agent.
+		agent_reply = _call_elevenlabs_agent(_strip_markers(receptionist_reply))
 		if agent_reply:
 			agent_line = f"Agent: {agent_reply}"
+		elif conversation_done and booked_slot:
+			agent_line = "Agent: Great, thank you for booking that!"
+		elif conversation_done:
+			agent_line = "Agent: Thank you. Do you have any other available times?"
 		else:
 			agent_line = "Agent: Could you share the earliest available slot?"
 		transcript.append(agent_line)
 		history.append(agent_line)
+
+		if conversation_done:
+			break
 
 	slot = _pick_slot(availability, time_window, busy_slots)
 	if booked_slot and booked_slot in availability:
