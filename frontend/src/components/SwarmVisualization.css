@@ -9,6 +9,37 @@
   color: #64748b;
 }
 
+.finding-providers {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.finding-providers p {
+  font-size: 1.15rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.finding-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(102, 126, 234, 0.15);
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: findingSpin 1s linear infinite;
+}
+
+@keyframes findingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .swarm-header {
   margin-bottom: 3rem;
 }

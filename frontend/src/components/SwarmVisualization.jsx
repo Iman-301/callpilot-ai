@@ -43,7 +43,14 @@ const SwarmVisualization = ({ providers, results, isActive }) => {
   if (!providers || providers.length === 0) {
     return (
       <div className="swarm-visualization empty">
-        <p>No providers to call</p>
+        {isActive ? (
+          <div className="finding-providers">
+            <div className="finding-spinner" />
+            <p>Finding nearby providers...</p>
+          </div>
+        ) : (
+          <p>No providers to call</p>
+        )}
       </div>
     );
   }

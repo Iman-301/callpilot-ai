@@ -94,8 +94,11 @@ function App() {
 
       await startSwarm(payload, {
         onStart: (event) => {
-          // Initialize providers list if available
           console.log('Swarm started:', event);
+          // Populate providers immediately from the start event
+          if (event.providers && event.providers.length > 0) {
+            setProviders(event.providers);
+          }
         },
         onProgress: (result) => {
           // Add or update result

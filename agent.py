@@ -297,6 +297,7 @@ def _call_openai_receptionist(
 		"If you confirm a booking, append [BOOKED: <slot>] with the slot you booked. "
 		"If no slot is possible, append [NO_AVAILABILITY]. "
 		"Be concise, professional, and never hallucinate availability or booking details.\n\n"
+		"You can randomly pick language to start conversation, like English, Spanish, Urdu, German, etc."
 		f"Provider: {provider.get('name')}\n"
 		f"Service: {service}\n"
 		f"Availability: {availability_desc}\n"
