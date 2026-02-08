@@ -1,7 +1,30 @@
 /**
  * Service for connecting to the swarm streaming API
- * Handles NDJSON parsing and event callbacks
+ * Handles SSE parsing and event callbacks
  */
+
+const parseSseEvents = (chunk) => {
+  const normalized = chunk.replace(/\r\n/g, '\n');
+  const events = [];
+  const blocks = normalized.split('\n\n');
+  for (const block of blocks) {
+    if (!block.trim()) continue;
+    const lines = block.split('\n');
+    let eventType = 'message';
+    let data = '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventType = line.replace('event:', '').trim();
+      } else if (line.startsWith('data:')) {
+        data += line.replace('data:', '').trim();
+      }
+    }
+    if (data) {
+      events.push({ type: eventType, data });
+    }
+  }
+  return events;
+};
 
 export const startSwarm = async (payload, callbacks) => {
   const { onStart, onProgress, onComplete, onError } = callbacks;
@@ -15,7 +38,7 @@ export const startSwarm = async (payload, callbacks) => {
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -25,51 +48,35 @@ export const startSwarm = async (payload, callbacks) => {
 
     while (true) {
       const { done, value } = await reader.read();
-      
-      if (done) {
-        break;
-      }
+      if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      
-      // Keep the last incomplete line in buffer
-      buffer = lines.pop() || '';
+      const normalized = buffer.replace(/\r\n/g, '\n');
+      const parts = normalized.split('\n\n');
+      buffer = parts.pop() || '';
 
-      for (const line of lines) {
-        if (line.trim()) {
+      for (const part of parts) {
+        const events = parseSseEvents(part);
+        for (const event of events) {
           try {
-            const event = JSON.parse(line);
-            
+            const payload = JSON.parse(event.data);
             switch (event.type) {
               case 'start':
-                onStart?.(event);
+                onStart?.(payload);
                 break;
               case 'progress':
-                onProgress?.(event.result);
+                onProgress?.(payload.result || payload);
                 break;
               case 'complete':
-                onComplete?.(event);
+                onComplete?.(payload);
                 break;
               default:
                 console.warn('Unknown event type:', event.type);
             }
           } catch (e) {
-            console.error('Failed to parse event:', line, e);
+            console.error('Failed to parse SSE data:', event.data, e);
           }
         }
-      }
-    }
-
-    // Process any remaining buffer
-    if (buffer.trim()) {
-      try {
-        const event = JSON.parse(buffer);
-        if (event.type === 'complete') {
-          onComplete?.(event);
-        }
-      } catch (e) {
-        console.error('Failed to parse final event:', buffer, e);
       }
     }
   } catch (error) {

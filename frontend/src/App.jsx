@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import LandingPage from './components/LandingPage';
 import ServiceSelection from './components/ServiceSelection';
 import TimeWindowSelector from './components/TimeWindowSelector';
@@ -44,7 +44,21 @@ function App() {
         const response = await fetch('/data/calendar.json');
         if (response.ok) {
           const data = await response.json();
-          setBusySlots(data.user_calendar?.busy_slots || []);
+          const loadedBusy = data.user_calendar?.busy_slots || [];
+          setBusySlots(loadedBusy);
+          setFormData((prev) => {
+            if (prev.time_window) return prev;
+            const firstDate = loadedBusy[0]?.start?.split(' ')[0];
+            const date = firstDate || new Date().toISOString().split('T')[0];
+            return {
+              ...prev,
+              time_window: {
+                date,
+                start: '09:00',
+                end: '17:00',
+              },
+            };
+          });
         }
       } catch (e) {
         console.warn('Could not load calendar data:', e);
@@ -59,17 +73,17 @@ function App() {
     setError(null);
   };
 
-  const handleServiceChange = (service) => {
+  const handleServiceChange = useCallback((service) => {
     setFormData((prev) => ({ ...prev, service }));
-  };
+  }, []);
 
-  const handleTimeWindowChange = (timeWindow) => {
+  const handleTimeWindowChange = useCallback((timeWindow) => {
     setFormData((prev) => ({ ...prev, time_window: timeWindow }));
-  };
+  }, []);
 
-  const handlePreferencesChange = (preferences) => {
+  const handlePreferencesChange = useCallback((preferences) => {
     setFormData((prev) => ({ ...prev, preferences }));
-  };
+  }, []);
 
   const handleStartSwarm = async () => {
     setError(null);
@@ -91,8 +105,10 @@ function App() {
 
       await startSwarm(payload, {
         onStart: (event) => {
-          // Initialize providers list if available
           console.log('Swarm started:', event);
+          if (event.providers && event.providers.length > 0) {
+            setProviders(event.providers);
+          }
         },
         onProgress: (result) => {
           // Add or update result

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { format } from 'date-fns';
 import './ProviderCard.css';
 
@@ -55,6 +55,14 @@ const ProviderCard = ({ provider, result, status = 'waiting' }) => {
   const slot = result?.slot;
   const score = result?.score;
   const components = result?.components;
+  const audioSrc = useMemo(() => {
+    const audioMap = result?.tts_audio_b64 || {};
+    const keys = Object.keys(audioMap);
+    if (keys.length === 0) return null;
+    const firstClip = audioMap[keys[0]];
+    if (!firstClip) return null;
+    return `data:audio/mpeg;base64,${firstClip}`;
+  }, [result]);
 
   return (
     <div className={`provider-card ${getStatusClass()}`}>
@@ -107,6 +115,13 @@ const ProviderCard = ({ provider, result, status = 'waiting' }) => {
       {result?.error && (
         <div className="error-message">
           {result.error}
+        </div>
+      )}
+
+      {audioSrc && (
+        <div className="audio-preview">
+          <div className="audio-label">Agent Voice (sample):</div>
+          <audio controls src={audioSrc} />
         </div>
       )}
     </div>

@@ -57,7 +57,18 @@ async def run_swarm_stream(payload, providers, max_concurrency=5, timeout_s=25):
     - {"type": "complete", "ranked": [...], "best": {...}}
     """
     semaphore = asyncio.Semaphore(max_concurrency)
-    yield {"type": "start", "count": len(providers)}
+    provider_summaries = [
+        {
+            "name": provider.get("name"),
+            "rating": provider.get("rating"),
+            "distance_miles": provider.get("distance_miles"),
+            "latitude": provider.get("latitude"),
+            "longitude": provider.get("longitude"),
+            "service": provider.get("service"),
+        }
+        for provider in providers
+    ]
+    yield {"type": "start", "count": len(providers), "providers": provider_summaries}
     
     results = []
     

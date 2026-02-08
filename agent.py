@@ -14,14 +14,19 @@ from pydantic import BaseModel
 try:
 	# Optional ElevenLabs SDK (latest). If missing, we fall back to mock.
 	from elevenlabs.client import ElevenLabs
-	from elevenlabs.conversational_ai.conversation import (
-		Conversation,
-		ConversationInitiationData,
-	)
 except Exception:  # pragma: no cover - optional dependency
 	ElevenLabs = None
+
+try:
+	from elevenlabs.conversational_ai.conversation import (
+		AudioInterface,
+		Conversation,
+		ConversationConfig,
+	)
+except Exception:  # pragma: no cover - optional dependency
+	AudioInterface = None
 	Conversation = None
-	ConversationInitiationData = None
+	ConversationConfig = None
 
 try:
 	import google.generativeai as genai
@@ -32,6 +37,28 @@ APP_ROOT = Path(__file__).resolve().parent
 CALENDAR_PATH = APP_ROOT / "data" / "calendar.json"
 
 app = FastAPI(title="CallPilot Voice Agent", version="0.1.0")
+
+
+def _load_env_file() -> None:
+	env_path = APP_ROOT / ".env"
+	if not env_path.exists():
+		return
+	try:
+		with open(env_path, "r", encoding="utf-8") as handle:
+			for raw_line in handle:
+				line = raw_line.strip()
+				if not line or line.startswith("#") or "=" not in line:
+					continue
+				key, value = line.split("=", 1)
+				key = key.strip()
+				value = value.strip().strip('"').strip("'")
+				if key and key not in os.environ:
+					os.environ[key] = value
+	except Exception:
+		return
+
+
+_load_env_file()
 
 
 class TimeWindow(BaseModel):
@@ -115,8 +142,15 @@ def _pick_slot(
 
 
 def _get_elevenlabs_client() -> Optional["ElevenLabs"]:
+	_load_env_file()
 	api_key = os.environ.get("ELEVENLABS_API_KEY")
 	if not api_key or ElevenLabs is None:
+		if _debug_enabled():
+			print(
+				"[agent] elevenlabs client unavailable",
+				{"has_key": bool(api_key), "sdk_loaded": bool(ElevenLabs)},
+				file=sys.stderr,
+			)
 		return None
 	return ElevenLabs(api_key=api_key)
 
@@ -161,14 +195,20 @@ def _extract_booked_slot(text: str) -> Optional[str]:
 def _call_elevenlabs_agent(message: str) -> Optional[str]:
 	client = _get_elevenlabs_client()
 	agent_id = os.environ.get("ELEVENLABS_AGENT_ID")
-	if not client or not agent_id or Conversation is None or ConversationInitiationData is None:
+	if (
+		not client
+		or not agent_id
+		or Conversation is None
+		or ConversationConfig is None
+		or AudioInterface is None
+	):
 		if _debug_enabled():
 			print(
 				"[agent] elevenlabs unavailable",
 				{
 					"client": bool(client),
 					"agent_id": bool(agent_id),
-					"sdk": bool(Conversation and ConversationInitiationData),
+					"sdk": bool(Conversation and ConversationConfig and AudioInterface),
 				},
 				file=sys.stderr,
 			)
@@ -177,11 +217,24 @@ def _call_elevenlabs_agent(message: str) -> Optional[str]:
 	responses: List[str] = []
 	ready = threading.Event()
 
+	class _SilentAudioInterface(AudioInterface):
+		def start(self, input_callback):  # type: ignore[override]
+			return None
+
+		def stop(self):  # type: ignore[override]
+			return None
+
+		def output(self, audio: bytes):  # type: ignore[override]
+			return None
+
+		def interrupt(self):  # type: ignore[override]
+			return None
+
 	def _on_agent_response(response: str) -> None:
 		responses.append(str(response))
 		ready.set()
 
-	config = ConversationInitiationData(
+	config = ConversationConfig(
 		conversation_config_override={"conversation": {"text_only": True}}
 	)
 
@@ -189,6 +242,7 @@ def _call_elevenlabs_agent(message: str) -> Optional[str]:
 		client,
 		agent_id,
 		requires_auth=True,
+		audio_interface=_SilentAudioInterface(),
 		config=config,
 		callback_agent_response=_on_agent_response,
 	)
@@ -276,18 +330,39 @@ def _tts_lines(lines: List[str]) -> Dict[int, str]:
 	audio_map: Dict[int, str] = {}
 	for idx, line in enumerate(lines):
 		# Generate short audio per agent line for demo purposes.
-		audio = client.text_to_speech.convert(
-			voice_id=voice_id,
-			text=line,
-			model_id="eleven_multilingual_v2",
-		)
-		audio_map[idx] = base64.b64encode(audio).decode("ascii")
+		try:
+			audio = client.text_to_speech.convert(
+				voice_id=voice_id,
+				text=line,
+				model_id="eleven_multilingual_v2",
+			)
+			if isinstance(audio, (bytes, bytearray)):
+				audio_bytes = bytes(audio)
+			else:
+				audio_bytes = b"".join(chunk for chunk in audio)
+			audio_map[idx] = base64.b64encode(audio_bytes).decode("ascii")
+		except Exception as exc:
+			print("[agent] elevenlabs tts error", str(exc), file=sys.stderr)
+			return {}
 	return audio_map
 
 
 @app.get("/health")
 def health() -> Dict[str, str]:
 	return {"status": "ok"}
+
+
+@app.get("/tts-status")
+def tts_status() -> Dict[str, Any]:
+	_load_env_file()
+	api_key = os.environ.get("ELEVENLABS_API_KEY")
+	return {
+		"tts_enabled": bool(api_key) and ElevenLabs is not None,
+		"has_api_key": bool(api_key),
+		"sdk_loaded": ElevenLabs is not None,
+		"voice_id": os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+		"api_key_prefix": (api_key or "")[:4],
+	}
 
 
 @app.post("/agent")

@@ -16,14 +16,26 @@ const TimeWindowSelector = ({ value, onChange, busySlots = [] }) => {
     }
   }, [date, startTime, endTime, onChange]);
 
-  // Get tomorrow's date as default (ISO format)
   const getTomorrow = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow.toISOString().split('T')[0];
   };
 
-  const defaultDate = date || getTomorrow();
+  const getBusySlotDate = () => {
+    if (!busySlots || busySlots.length === 0) return '';
+    const first = busySlots[0]?.start || '';
+    if (!first) return '';
+    return first.split(' ')[0];
+  };
+
+  const defaultDate = date || getBusySlotDate() || getTomorrow();
+
+  useEffect(() => {
+    if (!date && defaultDate) {
+      setDate(defaultDate);
+    }
+  }, [date, defaultDate]);
 
   return (
     <div className="time-window-selector">
@@ -37,7 +49,6 @@ const TimeWindowSelector = ({ value, onChange, busySlots = [] }) => {
             className="date-input"
             value={date || defaultDate}
             onChange={(e) => setDate(e.target.value)}
-            min={getTomorrow()}
           />
         </div>
 

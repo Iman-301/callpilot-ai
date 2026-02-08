@@ -40,7 +40,12 @@ const SwarmVisualization = ({ providers, results, isActive }) => {
     }
   }, [results]);
 
-  if (!providers || providers.length === 0) {
+  const displayProviders =
+    providers && providers.length > 0
+      ? providers
+      : (results || []).map((result) => result.provider).filter(Boolean);
+
+  if (!displayProviders || displayProviders.length === 0) {
     return (
       <div className="swarm-visualization empty">
         <p>No providers to call</p>
@@ -52,7 +57,7 @@ const SwarmVisualization = ({ providers, results, isActive }) => {
     (state) => state.status !== 'waiting' && state.status !== 'calling'
   ).length;
 
-  const totalCount = providers.length;
+  const totalCount = displayProviders.length;
 
   return (
     <div className="swarm-visualization">
@@ -72,8 +77,8 @@ const SwarmVisualization = ({ providers, results, isActive }) => {
       </div>
 
       <div className="provider-grid">
-        {providers.length > 0 ? (
-          providers.map((provider) => {
+        {displayProviders.length > 0 ? (
+          displayProviders.map((provider) => {
             const state = providerStates[provider.name] || {
               status: 'waiting',
               result: null,

@@ -130,11 +130,13 @@ def swarm_stream():
         return jsonify({"error": "no providers available"}), 400
 
     def event_stream():
-        # Output NDJSON format for frontend compatibility
+        # Output SSE format for frontend compatibility
         for event in stream_swarm_sync(payload, providers):
-            yield json.dumps(event) + "\n"
+            event_type = event.get("type", "message")
+            yield f"event: {event_type}\n"
+            yield f"data: {json.dumps(event)}\n\n"
 
-    return Response(stream_with_context(event_stream()), mimetype="application/x-ndjson")
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 
 
 @app.post("/check-calendar")

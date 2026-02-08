@@ -1,10 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './PreferencesPanel.css';
 
 const PreferencesPanel = ({ value, onChange }) => {
   const [timeWeight, setTimeWeight] = useState(value?.time_weight || 0.5);
   const [ratingWeight, setRatingWeight] = useState(value?.rating_weight || 0.3);
   const [distanceWeight, setDistanceWeight] = useState(value?.distance_weight || 0.2);
+
+  const lastSentRef = useRef('');
+
+  useEffect(() => {
+    if (!value) return;
+    const next = {
+      time_weight: value.time_weight ?? 0.5,
+      rating_weight: value.rating_weight ?? 0.3,
+      distance_weight: value.distance_weight ?? 0.2,
+    };
+    setTimeWeight(next.time_weight);
+    setRatingWeight(next.rating_weight);
+    setDistanceWeight(next.distance_weight);
+  }, [value?.time_weight, value?.rating_weight, value?.distance_weight]);
 
   useEffect(() => {
     // Normalize weights to sum to 1.0
@@ -15,9 +29,13 @@ const PreferencesPanel = ({ value, onChange }) => {
         rating_weight: ratingWeight / total,
         distance_weight: distanceWeight / total,
       };
-      onChange(normalized);
+      const serialized = JSON.stringify(normalized);
+      if (serialized !== lastSentRef.current) {
+        lastSentRef.current = serialized;
+        onChange(normalized);
+      }
     }
-  }, [timeWeight, ratingWeight, distanceWeight, onChange]);
+  }, [timeWeight, ratingWeight, distanceWeight]);
 
   const getWeightLabel = (weight) => {
     if (weight >= 0.5) return 'High Priority';
