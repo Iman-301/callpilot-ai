@@ -1,195 +1,389 @@
-import base64
-import json
-import os
-import sys
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+"""
+CallPilot - An elite, autonomous AI scheduling agent
+Flask application with ElevenLabs Conversational AI SDK integration
+"""
 
-from fastapi import FastAPI
-from pydantic import BaseModel
+from flask import Flask, jsonify, request, Response
+from flask_cors import CORS
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
+import json
+from config import Config
+
+# Try to import ElevenLabs (may not be available or API may have changed)
+elevenlabs_client = None
+ConversationConfig = None
+Conversation = None
 
 try:
-	# Optional ElevenLabs SDK (latest). If missing, we fall back to text-only.
-	from elevenlabs.client import ElevenLabs
-except Exception:  # pragma: no cover - optional dependency
-	ElevenLabs = None
+    from elevenlabs import ElevenLabs
+    if Config.ELEVENLABS_API_KEY:
+        try:
+            elevenlabs_client = ElevenLabs(api_key=Config.ELEVENLABS_API_KEY)
+        except Exception as e:
+            print(f"Warning: Could not initialize ElevenLabs client: {e}")
+except ImportError:
+    print("Warning: ElevenLabs SDK not available or API has changed")
+    print("Basic endpoints (health, availability, booking) will work without ElevenLabs")
 
-APP_ROOT = Path(__file__).resolve().parent
-CALENDAR_PATH = APP_ROOT / "data" / "calendar.json"
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
-app = FastAPI(title="CallPilot Voice Agent", version="0.1.0")
+# Business configuration
+BUSINESS_NAME = Config.BUSINESS_NAME
+AGENT_ID = Config.ELEVENLABS_AGENT_ID
 
+# System Prompt - The CallPilot Agentic System Prompt
+CALLPILOT_SYSTEM_PROMPT = """You are CallPilot, an elite, autonomous AI scheduling agent.
 
-class TimeWindow(BaseModel):
-	date: Optional[str] = None
-	start: Optional[str] = None
-	end: Optional[str] = None
+IDENTITY & PERSONA:
+- Name: CallPilot
+- Role: An elite, autonomous AI scheduling agent
+- Tone: Professional, crisp, and high-energy. You are helpful but value the user's time.
+- Voice Style: Natural, use occasional filler words like "Let's see..." or "Got it" to mask latency. NEVER use bullet points or lists in your speech; speak in full, flowing sentences.
 
+CORE MISSION:
+Your sole objective is to move the user through the Booking Funnel:
+1. Identify the service requested.
+2. Check availability using the check_availability tool.
+3. Negotiate a time slot.
+4. Confirm details and execute the booking using book_appointment.
 
-class AgentRequest(BaseModel):
-	provider: Dict[str, Any]
-	request: Dict[str, Any]
+OPERATIONAL RULES (THE "STATE MACHINE"):
+- Greeting: Start with: "Thanks for calling {business_name}, this is CallPilot. How can I help you get scheduled today?"
+- Tool Usage: You must call check_availability before suggesting any specific date or time. Do not guess.
+- Filler Word Injection: When calling check_availability, ALWAYS say "One second, checking the calendar..." or "Let me check the calendar for you..." BEFORE the tool executes. This masks latency and keeps the conversation natural.
+- Constraint Handling: If the user's requested time is unavailable, look at the tool output and offer the two closest alternatives immediately. Do not ask "When else works?"—be proactive.
+- Information Gathering: If the user is vague (e.g., "sometime next week"), ask for a specific day.
+- Confirmation Flow: Before calling book_appointment, you must recap: "Okay, just to confirm, I'm booking your [Service] for [Date] at [Time]. Is that correct?"
 
+EDGE CASE & GUARDRAIL PROTOCOLS:
+- The "Barge-In": If the user interrupts you, stop speaking immediately and acknowledge the new information (e.g., "Oh, sorry, you said Wednesday instead? Let me re-check that.").
+- Ambiguity: If the user asks for "the usual," and you don't have that data, politely ask: "I want to make sure I get this right—which service are we looking at today?"
+- Off-Topic: If the user asks non-scheduling questions (e.g., "What's the weather?"), steer them back: "I'm not sure about the weather, but I can definitely get you booked for your appointment. Which day works for you?"
+- Latency Masking: If a tool call takes longer than 2 seconds, provide a "thinking" vocalization: "One moment, the system is just pulling up those records..."
 
-def _load_busy_slots() -> List[tuple[datetime, datetime]]:
-	if not CALENDAR_PATH.exists():
-		return []
-	try:
-		with open(CALENDAR_PATH, "r", encoding="utf-8") as handle:
-			data = json.load(handle)
-		busy = []
-		for item in data.get("user_calendar", {}).get("busy_slots", []):
-			start = datetime.fromisoformat(item["start"])
-			end = datetime.fromisoformat(item["end"])
-			busy.append((start, end))
-		return busy
-	except Exception:
-		return []
+OUTPUT FORMATTING FOR TTS:
+- Numbers: Say "Ten A M" instead of "10:00."
+- Dates: Say "February tenth" instead of "02/10."
+- Punctuation: Use commas frequently to create natural pauses in the ElevenLabs voice synthesis.
 
-
-def _is_busy(slot_dt: datetime, busy_slots: List[tuple[datetime, datetime]]) -> bool:
-	for start, end in busy_slots:
-		if start <= slot_dt < end:
-			return True
-	return False
-
-
-def _parse_slot(slot_str: Optional[str], date_hint: Optional[str] = None) -> Optional[datetime]:
-	if not slot_str:
-		return None
-	if len(slot_str) == 5 and ":" in slot_str and date_hint:
-		return datetime.fromisoformat(f"{date_hint} {slot_str}")
-	try:
-		return datetime.fromisoformat(slot_str)
-	except ValueError:
-		return None
-
-
-def _pick_slot(
-	availability: List[str],
-	time_window: Optional[Dict[str, Any]],
-	busy_slots: List[tuple[datetime, datetime]],
-) -> Optional[str]:
-	if not availability:
-		return None
-
-	date_hint = None
-	if time_window:
-		date_hint = time_window.get("date")
-
-	parsed = [(slot, _parse_slot(slot, date_hint)) for slot in availability]
-	parsed = [(slot, dt) for slot, dt in parsed if dt]
-	if not parsed:
-		return None
-
-	parsed = [(slot, dt) for slot, dt in parsed if not _is_busy(dt, busy_slots)]
-	if not parsed:
-		return None
-
-	if not time_window:
-		return sorted(parsed, key=lambda item: item[1])[0][0]
-
-	start = _parse_slot(time_window.get("start"), time_window.get("date"))
-	end = _parse_slot(time_window.get("end"), time_window.get("date"))
-	for slot, dt in sorted(parsed, key=lambda item: item[1]):
-		if start and dt < start:
-			continue
-		if end and dt > end:
-			continue
-		return slot
-	return None
+Remember: Always be proactive, check availability before suggesting times, and confirm before booking.""".format(business_name=Config.BUSINESS_NAME)
 
 
-def _get_elevenlabs_client() -> Optional["ElevenLabs"]:
-	api_key = os.environ.get("ELEVENLABS_API_KEY")
-	if not api_key or ElevenLabs is None:
-		return None
-	return ElevenLabs(api_key=api_key)
+# Mock availability data - In production, this would connect to a real calendar system
+AVAILABILITY_DB: Dict[str, Dict[str, list]] = {
+    "2026-02-10": {
+        "available_times": ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"],
+        "booked_times": []
+    },
+    "2026-02-11": {
+        "available_times": ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"],
+        "booked_times": []
+    },
+    "2026-02-12": {
+        "available_times": ["09:00", "10:00", "14:00", "15:00", "16:00"],
+        "booked_times": ["11:00"]
+    }
+}
+
+# Service types (from config)
+SERVICES = Config.SERVICES
 
 
-def _tts_lines(lines: List[str]) -> Dict[int, str]:
-	client = _get_elevenlabs_client()
-	if not client:
-		return {}
+def check_availability(date: str) -> Dict[str, Any]:
+    """
+    Check availability for a given date.
+    
+    Note: The agent is instructed via system prompt to say filler words like
+    "One second, checking the calendar..." BEFORE calling this function.
+    This masks latency and keeps the conversation natural.
+    
+    Args:
+        date: ISO format date string (e.g., "2026-02-10")
+    
+    Returns:
+        Dictionary with availability information
+    """
+    try:
+        # Validate date format
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return {
+            "available": False,
+            "message": "Invalid date format. Please use YYYY-MM-DD format.",
+            "available_times": [],
+            "closest_alternatives": []
+        }
+    
+    # Check if date exists in database
+    if date not in AVAILABILITY_DB:
+        # Generate default availability for future dates
+        AVAILABILITY_DB[date] = {
+            "available_times": Config.DEFAULT_AVAILABLE_TIMES.copy(),
+            "booked_times": []
+        }
+    
+    date_data = AVAILABILITY_DB[date]
+    available_times = [t for t in date_data["available_times"] if t not in date_data["booked_times"]]
+    
+    # Find closest alternative dates if no availability
+    closest_alternatives = []
+    if not available_times:
+        current_date = datetime.strptime(date, "%Y-%m-%d")
+        for i in range(1, 8):  # Check next 7 days
+            check_date = current_date + timedelta(days=i)
+            check_date_str = check_date.strftime("%Y-%m-%d")
+            
+            if check_date_str in AVAILABILITY_DB:
+                alt_data = AVAILABILITY_DB[check_date_str]
+                alt_available = [t for t in alt_data["available_times"] if t not in alt_data["booked_times"]]
+                if alt_available:
+                    closest_alternatives.append({
+                        "date": check_date_str,
+                        "available_times": alt_available[:2]  # Top 2 alternatives
+                    })
+                    if len(closest_alternatives) >= 2:
+                        break
+    
+    return {
+        "available": len(available_times) > 0,
+        "message": f"Found {len(available_times)} available time slots" if available_times else "No availability on this date",
+        "available_times": available_times,
+        "closest_alternatives": closest_alternatives
+    }
 
-	voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
-	audio_map: Dict[int, str] = {}
-	for idx, line in enumerate(lines):
-		# Generate short audio per agent line for demo purposes.
-		audio = client.text_to_speech.convert(
-			voice_id=voice_id,
-			text=line,
-			model_id="eleven_multilingual_v2",
-		)
-		audio_map[idx] = base64.b64encode(audio).decode("ascii")
-	return audio_map
+
+def book_appointment(date: str, time: str, service: str) -> Dict[str, Any]:
+    """
+    Book an appointment for a given date, time, and service.
+    
+    Args:
+        date: ISO format date string (e.g., "2026-02-10")
+        time: Time string in HH:MM format (e.g., "10:00")
+        service: Service type string
+    
+    Returns:
+        Dictionary with booking confirmation
+    """
+    try:
+        # Validate date format
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return {
+            "success": False,
+            "message": "Invalid date format. Please use YYYY-MM-DD format."
+        }
+    
+    # Initialize date in database if not exists
+    if date not in AVAILABILITY_DB:
+        AVAILABILITY_DB[date] = {
+            "available_times": Config.DEFAULT_AVAILABLE_TIMES.copy(),
+            "booked_times": []
+        }
+    
+    date_data = AVAILABILITY_DB[date]
+    
+    # Check if time is available
+    if time in date_data["booked_times"]:
+        return {
+            "success": False,
+            "message": f"Time slot {time} is already booked. Please choose another time."
+        }
+    
+    if time not in date_data["available_times"]:
+        return {
+            "success": False,
+            "message": f"Time slot {time} is not available. Please choose from available times."
+        }
+    
+    # Book the appointment
+    date_data["booked_times"].append(time)
+    
+    # Generate confirmation ID
+    confirmation_id = f"CP-{date.replace('-', '')}-{time.replace(':', '')}"
+    
+    return {
+        "success": True,
+        "message": "Appointment booked successfully",
+        "confirmation_id": confirmation_id,
+        "date": date,
+        "time": time,
+        "service": service
+    }
 
 
-@app.get("/health")
-def health() -> Dict[str, str]:
-	return {"status": "ok"}
+# Global conversation instance
+conversation: Optional[Conversation] = None
 
 
-@app.post("/agent")
-def run_agent(payload: AgentRequest) -> Dict[str, Any]:
-	provider = payload.provider
-	request_payload = payload.request
-	print(
-		"[agent] request",
-		{"provider": provider.get("name"), "service": request_payload.get("service")},
-		file=sys.stderr,
-	)
+def init_conversation():
+    """Initialize the conversation on startup"""
+    global conversation
+    # Only validate and initialize if credentials are provided
+    if Config.ELEVENLABS_API_KEY and Config.ELEVENLABS_AGENT_ID:
+        try:
+            # Try to import ElevenLabs conversational AI (API may have changed)
+            try:
+                from elevenlabs.conversational_ai import Conversation, ConversationConfig
+                Config.validate()
+                
+                # Create tools
+                tools = []  # Tools will be configured in ElevenLabs dashboard
+                
+                config = ConversationConfig(
+                    agent_id=AGENT_ID,
+                    asr_settings=Config.get_asr_settings(),
+                    tts_settings=Config.get_tts_settings(),
+                    tools=tools,
+                    system_prompt=CALLPILOT_SYSTEM_PROMPT,
+                    enable_webhook=False,
+                    enable_transcription=True,
+                    enable_audio_recording=True
+                )
+                conversation = Conversation(config=config, client=elevenlabs_client)
+                print("[OK] ElevenLabs conversation initialized successfully")
+            except (ImportError, AttributeError) as import_error:
+                print(f"[WARNING] ElevenLabs SDK API has changed: {import_error}")
+                print("   Conversation endpoints will not work until SDK is updated.")
+                print("   Basic endpoints (health, availability, booking) will work.")
+        except Exception as e:
+            print(f"[WARNING] Could not initialize ElevenLabs conversation: {e}")
+            print("   Basic endpoints (health, availability, booking) will work.")
+    else:
+        print("[WARNING] ElevenLabs credentials not configured.")
+        print("   Basic endpoints (health, availability, booking) will work.")
 
-	availability = provider.get("availability", [])
-	time_window = request_payload.get("time_window")
-	service = request_payload.get("service", "appointment")
 
-	service_clean = str(service).strip() or "appointment"
-	article = "an" if service_clean[:1].lower() in {"a", "e", "i", "o", "u"} else "a"
+# Initialize on import
+init_conversation()
 
-	window_desc = None
-	if time_window:
-		window_desc = (
-			f"{time_window.get('date', '')} between "
-			f"{time_window.get('start', '')} and {time_window.get('end', '')}"
-		).strip()
 
-	request_line = f"Agent: I'd like to book {article} {service_clean}"
-	if window_desc:
-		request_line = f"{request_line} for {window_desc}"
-	request_line = f"{request_line}."
+@app.route("/", methods=["GET"])
+def root():
+    """Root endpoint"""
+    return jsonify({
+        "service": "CallPilot",
+        "status": "operational",
+        "version": "1.0.0"
+    })
 
-	busy_slots = _load_busy_slots()
-	slot = _pick_slot(availability, time_window, busy_slots)
 
-	if not slot:
-		transcript = [
-			f"{provider.get('name', 'Provider')}: Thank you for calling. How can we help?",
-			request_line,
-			f"{provider.get('name', 'Provider')}: Sorry, no slots match that request.",
-			"Agent: Thanks for checking. Please let us know if anything opens up.",
-		]
-		return {
-			"status": "no_availability",
-			"provider": provider,
-			"slot": None,
-			"transcript": transcript,
-			"tts_audio_b64": _tts_lines([transcript[1], transcript[3]]),
-		}
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "conversation_initialized": conversation is not None
+    })
 
-	transcript = [
-		f"{provider.get('name', 'Provider')}: Thank you for calling. How can we help?",
-		request_line,
-		f"{provider.get('name', 'Provider')}: We can do {slot}.",
-		"Agent: Great, please book it under Alex.",
-		f"{provider.get('name', 'Provider')}: You're all set for {slot}.",
-	]
 
-	return {
-		"status": "ok",
-		"provider": provider,
-		"slot": slot,
-		"transcript": transcript,
-		"tts_audio_b64": _tts_lines([transcript[1], transcript[3]]),
-	}
+@app.route("/availability/<date>", methods=["GET"])
+def get_availability(date: str):
+    """Direct endpoint to check availability (for testing)"""
+    result = check_availability(date)
+    return jsonify(result)
+
+
+@app.route("/book", methods=["POST"])
+def book_direct():
+    """Direct endpoint to book appointment (for testing)"""
+    # Support both JSON body (from ElevenLabs) and query parameters (for testing)
+    if request.is_json:
+        body = request.get_json()
+        date = body.get("date") or request.args.get("date")
+        time = body.get("time") or request.args.get("time")
+        service = body.get("service") or request.args.get("service")
+    else:
+        date = request.args.get("date")
+        time = request.args.get("time")
+        service = request.args.get("service")
+    
+    if not date or not time or not service:
+        return jsonify({
+            "error": "Missing required parameters",
+            "message": "date, time, and service are required"
+        }), 400
+    
+    result = book_appointment(date, time, service)
+    return jsonify(result)
+
+
+@app.route("/conversation/start", methods=["POST"])
+def start_conversation():
+    """Start a new conversation"""
+    global conversation
+    
+    # Validate ElevenLabs configuration
+    if not Config.validate_elevenlabs():
+        return jsonify({
+            "error": "ElevenLabs configuration missing",
+            "message": "ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID must be set in .env file",
+            "api_key_set": Config.ELEVENLABS_API_KEY is not None,
+            "agent_id_set": Config.ELEVENLABS_AGENT_ID is not None
+        }), 500
+    
+    if not elevenlabs_client:
+        return jsonify({
+            "error": "ElevenLabs client not initialized",
+            "message": "Failed to initialize ElevenLabs client. Check your API key."
+        }), 500
+    
+    try:
+        if not conversation:
+            init_conversation()
+        
+        if not conversation:
+            return jsonify({
+                "error": "Failed to create conversation",
+                "message": "Check that your agent_id is valid and the SDK API is correct"
+            }), 500
+        
+        # Start the conversation
+        response = conversation.start()
+        
+        return jsonify({
+            "conversation_id": response.conversation_id,
+            "message": "Conversation started"
+        })
+    except Exception as e:
+        return jsonify({
+            "error": "Failed to start conversation",
+            "message": str(e),
+            "hint": "Verify your agent_id exists and is correct in ElevenLabs dashboard"
+        }), 500
+
+
+@app.route("/conversation/text", methods=["POST"])
+def handle_text_input():
+    """Handle text input (for testing)"""
+    if not conversation:
+        return jsonify({
+            "error": "Conversation not initialized"
+        }), 400
+    
+    data = request.get_json()
+    text = data.get("text", "") if data else ""
+    
+    if not text:
+        return jsonify({
+            "error": "Text input is required"
+        }), 400
+    
+    try:
+        # Process text through the conversation
+        response = conversation.text(text)
+        
+        return jsonify({
+            "response": response.text,
+            "audio_url": getattr(response, 'audio_url', None)
+        })
+    except Exception as e:
+        return jsonify({
+            "error": "Failed to process text",
+            "message": str(e)
+        }), 500
+
+
+if __name__ == "__main__":
+    app.run(host=Config.HOST, port=Config.PORT, debug=True)
