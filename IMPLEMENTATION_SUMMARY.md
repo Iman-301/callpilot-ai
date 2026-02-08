@@ -1,98 +1,33 @@
-# Implementation Summary - Role 3 & 4
-
-## What Was Built
-
-### Role 3: Dashboard
-A complete React dashboard that visualizes real-time swarm calls with:
-- **Real-time Updates**: Live streaming from the backend showing call progress
-- **Provider Cards**: Individual cards for each provider showing status, rating, distance, and appointment slots
-- **Progress Tracking**: Visual progress bar showing completion status
-- **Score Visualization**: Detailed breakdown of scoring components (time, rating, distance)
-
-### Role 4: Demo/Integration
-A polished end-to-end user experience including:
-- **Landing Page**: Beautiful hero section with feature highlights
-- **Input Form**: Service selection, time window picker, and preference sliders
-- **Results Panel**: Ranked list of appointments with "best match" highlighting
-- **Booking Confirmation**: Smooth confirmation flow with success animations
-- **Error Handling**: Comprehensive error states and user feedback
-
-## File Structure
-
-```
-callpilot-ai/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── LandingPage.jsx          # Landing page with hero
-│   │   │   ├── ServiceSelection.jsx      # Service type selector
-│   │   │   ├── TimeWindowSelector.jsx   # Date/time picker
-│   │   │   ├── PreferencesPanel.jsx     # Scoring preference sliders
-│   │   │   ├── SwarmVisualization.jsx   # Real-time call visualization
-│   │   │   ├── ProviderCard.jsx         # Individual provider card
-│   │   │   ├── ResultsPanel.jsx         # Ranked results display
-│   │   │   └── ConfirmationCard.jsx     # Booking confirmation
-│   │   ├── services/
-│   │   │   └── swarmService.js          # Streaming API client
-│   │   ├── styles/
-│   │   │   └── App.css                  # Global styles
-│   │   ├── App.jsx                      # Main app orchestrator
-│   │   └── main.jsx                     # Entry point
-│   ├── package.json
-│   └── vite.config.js
-├── app.py                               # Updated with CORS
-└── requirements.txt                     # Updated with flask-cors
-```
-
-## Key Features Implemented
-
-### 1. Streaming API Integration
-- NDJSON parsing for real-time events
-- Handles `start`, `progress`, and `complete` events
-- Error handling and reconnection logic
-
-### 2. Real-time Visualization
-- Provider cards update as calls complete
-- Status indicators (waiting, calling, success, failed)
-- Progress bar showing completion percentage
-- Smooth animations and transitions
-
-### 3. Smart Scoring Display
-- Visual score breakdown (time, rating, distance)
-- Weighted preference system
-- "Best match" highlighting
-- Detailed component scores
-
-### 4. User Experience
-- Responsive design (mobile-friendly)
-- Loading states and skeletons
-- Error messages and recovery
-- Smooth page transitions
-- Success animations
+# Implementation Summary
 
 ## How to Run
 
-### Backend (Flask)
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run server
-python app.py
-```
-Backend runs on `http://localhost:5000`
-
-### Frontend (React)
+### Terminal 1: Frontend
+Navigate to the frontend directory and start the development server:
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
 ```
-Frontend runs on `http://localhost:3000`
+
+### Terminal 2: Backend (Flask)
+Install Python dependencies and run the main application:
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+### Terminal 3: Agent Server
+Run the agent service using Uvicorn:
+```bash
+uvicorn agent:app --host 0.0.0.0 --port 8000
+```
+
+### Terminal 4: Ngrok
+Expose the Flask backend (port 5000) for ElevenLabs integration:
+```bash
+ngrok http 5000
+```
 
 ## User Flow
 
