@@ -7,6 +7,7 @@ from flask import Flask, Response, jsonify, request, stream_with_context
 from flask_cors import CORS
 
 from swarm.orchestrator import run_swarm_sync, stream_swarm_sync
+from places import search_nearby, search_all_services, save_providers
 
 APP_ROOT = Path(__file__).resolve().parent
 PROVIDERS_PATH = APP_ROOT / "data" / "providers.json"
@@ -110,8 +111,29 @@ def get_calendar():
 def swarm():
     payload = request.get_json(silent=True) or {}
     service = payload.get("service")
-    limit = payload.get("limit")
-    providers = filter_providers(load_providers(), service, limit)
+    limit = payload.get("limit", 15)
+    lat = payload.get("lat")
+    lng = payload.get("lng")
+    time_window = payload.get("time_window") or {}
+    date = time_window.get("date")
+
+    print(f"Payload: {payload}")
+
+    # If lat/lng provided, fetch real providers from Google Places
+    if lat is not None and lng is not None:
+        try:
+            radius = payload.get("radius", 5000)
+            if service:
+                providers = search_nearby(service, lat, lng, radius, limit, date=date)
+            else:
+                providers = search_all_services(lat, lng, radius, limit, date=date)
+            save_providers(providers, merge=False)
+        except Exception as e:
+            print(f"[places] Error: {e}, falling back to providers.json")
+            providers = filter_providers(load_providers(), service, limit)
+    else:
+        providers = filter_providers(load_providers(), service, limit)
+
     if not providers:
         return jsonify({"error": "no providers available"}), 400
 
@@ -123,9 +145,32 @@ def swarm():
 def swarm_stream():
     payload = request.get_json(silent=True) or {}
     service = payload.get("service")
-    limit = payload.get("limit")
+    limit = payload.get("limit", 5)
+    lat = payload.get("lat")
+    lng = payload.get("lng")
     print("Payload received for streaming swarm:", payload)
-    providers = filter_providers(load_providers(), service, limit)
+
+    # Extract date from time_window for mock availability slots
+    time_window = payload.get("time_window") or {}
+    date = time_window.get("date")
+
+    # If lat/lng provided, fetch real providers from Google Places
+    if lat is not None and lng is not None:
+        try:
+            radius = payload.get("radius", 5000)
+            if service:
+                providers = search_nearby(service, lat, lng, radius, limit, date=date)
+            else:
+                providers = search_all_services(lat, lng, radius, limit, date=date)
+            # Save to providers.json so the rest of the pipeline can reference them
+            save_providers(providers, merge=False)
+            print(f"[places] Found {len(providers)} providers via Google Places")
+        except Exception as e:
+            print(f"[places] Error: {e}, falling back to providers.json")
+            providers = filter_providers(load_providers(), service, limit)
+    else:
+        providers = filter_providers(load_providers(), service, limit)
+
     if not providers:
         return jsonify({"error": "no providers available"}), 400
 
@@ -135,6 +180,53 @@ def swarm_stream():
             yield json.dumps(event) + "\n"
 
     return Response(stream_with_context(event_stream()), mimetype="application/x-ndjson")
+
+
+@app.post("/providers/search")
+def search_providers():
+    """
+    Search for nearby providers using Google Places API.
+
+    Body JSON:
+        service: str - one of 'dentist', 'auto_repair', 'doctor', 'hairdresser' (optional, searches all if omitted)
+        lat: float - user latitude
+        lng: float - user longitude
+        radius: int - search radius in meters (default 5000)
+        max_results: int - max providers per service (default 5)
+        save: bool - whether to save results to providers.json (default true)
+        merge: bool - whether to merge with existing providers (default false)
+    """
+    payload = request.get_json(silent=True) or {}
+    lat = payload.get("lat")
+    lng = payload.get("lng")
+
+    if lat is None or lng is None:
+        return jsonify({"error": "lat and lng are required"}), 400
+
+    service = payload.get("service")
+    radius = payload.get("radius", 5000)
+    max_results = payload.get("max_results", 5)
+    should_save = payload.get("save", True)
+    merge = payload.get("merge", False)
+
+    try:
+        if service:
+            providers = search_nearby(service, lat, lng, radius, max_results)
+        else:
+            providers = search_all_services(lat, lng, radius, max_results)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Places API error: {str(e)}"}), 500
+
+    if should_save:
+        save_providers(providers, merge=merge)
+
+    return jsonify({
+        "providers": providers,
+        "count": len(providers),
+        "saved": should_save,
+    })
 
 
 @app.post("/check-calendar")

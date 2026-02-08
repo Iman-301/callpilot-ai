@@ -1,40 +1,203 @@
 {
   "providers": [
     {
-      "name": "Smile Dental",
-      "service": "dentist",
-      "phone": "+15550101",
-      "availability": ["2026-02-08 14:00", "2026-02-08 16:00"],
-      "rating": 4.6,
-      "distance_miles": 2.3,
-      "simulated_latency_s": 1.5
+      "name": "Hoorain surgical & maternity home",
+      "service": "doctor",
+      "phone": "+92 332 6065687",
+      "address": "54C3+WF8, Street Number 3, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 09:00",
+        "2026-02-08 11:00",
+        "2026-02-08 12:00"
+      ],
+      "rating": 4.5,
+      "distance_miles": 0.1,
+      "place_id": "ChIJxwSMMwRPGDkRCbpT5cal57Y",
+      "open_now": true
     },
     {
-      "name": "Bright Teeth",
-      "service": "dentist",
-      "phone": "+15550102",
-      "availability": ["2026-02-08 15:30"],
+      "name": "Doctor nazir home",
+      "service": "doctor",
+      "phone": "+92 300 4981807",
+      "address": "DR NAZIR DSV HOME, near pond, کوٹ رادھا کشن",
+      "availability": [
+        "2026-02-08 14:00"
+      ],
+      "rating": 0.0,
+      "distance_miles": 0.1,
+      "place_id": "ChIJXTVrNn9PGDkRM_0pf2HbTEI",
+      "open_now": null
+    },
+    {
+      "name": "Noor Hospital",
+      "service": "doctor",
+      "phone": "+92 49 2382689",
+      "address": "20 Boarding Street, کوٹ رادھا کشن",
+      "availability": [
+        "2026-02-08 12:30",
+        "2026-02-08 16:30"
+      ],
+      "rating": 4.1,
+      "distance_miles": 0.1,
+      "place_id": "ChIJHSuwMR9OGDkRmsEwUYEDznY",
+      "open_now": true
+    },
+    {
+      "name": "Zahra Health & Aesthetics",
+      "service": "doctor",
+      "phone": "+92 308 4596710",
+      "address": "Mirza Moazzum Baig Street, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 09:00",
+        "2026-02-08 13:30"
+      ],
+      "rating": 5,
+      "distance_miles": 0.3,
+      "place_id": "ChIJUxqQLGRPGDkRmh0gjAa6RAQ",
+      "open_now": true
+    },
+    {
+      "name": "Ofce Mayo News",
+      "service": "doctor",
+      "phone": "",
+      "address": "5495+G6M, Pattoki - Raiwind Road, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 15:30"
+      ],
+      "rating": 0.0,
+      "distance_miles": 0.3,
+      "place_id": "ChIJZbriMvBPGDkRUnprsyBed6M",
+      "open_now": false
+    },
+    {
+      "name": "Al Hakeem house",
+      "service": "doctor",
+      "phone": "+92 344 4726232",
+      "address": "1 Pattoki - Raiwind Road, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 09:00",
+        "2026-02-08 13:30",
+        "2026-02-08 15:30"
+      ],
+      "rating": 0.0,
+      "distance_miles": 0.3,
+      "place_id": "ChIJu1azTBVPGDkRupsCBVkWnEk",
+      "open_now": null
+    },
+    {
+      "name": "Shafi Dawa Khana",
+      "service": "doctor",
+      "phone": "+92 305 9332520",
+      "address": "5492+C36, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 09:00",
+        "2026-02-08 12:00",
+        "2026-02-08 13:30"
+      ],
+      "rating": 0.0,
+      "distance_miles": 0.3,
+      "place_id": "ChIJp_lUcSJOGDkR8pNviGOCkH8",
+      "open_now": true
+    },
+    {
+      "name": "Sughran Amin Healthcare Centre",
+      "service": "doctor",
+      "phone": "+92 304 4554160",
+      "address": "Chak 55 road Kot Radha Kishan Road, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 10:30"
+      ],
+      "rating": 5,
+      "distance_miles": 0.4,
+      "place_id": "ChIJYwwu2MZPGDkRuxxe6og9pOc",
+      "open_now": null
+    },
+    {
+      "name": "Faridia Shafa Khana",
+      "service": "doctor",
+      "phone": "+92 306 4170314",
+      "address": "Guandian Road Faridia Shafa Khana, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 09:30",
+        "2026-02-08 11:30"
+      ],
+      "rating": 5,
+      "distance_miles": 0.4,
+      "place_id": "ChIJlQgw9itPGDkRwrJGt1sZWFE",
+      "open_now": true
+    },
+    {
+      "name": "Khubaib Veterinary clinic",
+      "service": "doctor",
+      "phone": "+92 308 3355044",
+      "address": "5485+8FC, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 10:00",
+        "2026-02-08 12:30",
+        "2026-02-08 15:00"
+      ],
+      "rating": 5,
+      "distance_miles": 0.5,
+      "place_id": "ChIJzRxpAgBPGDkRU6CWvSDZqV8",
+      "open_now": true
+    },
+    {
+      "name": "Life Care Hospital kot radha kishan",
+      "service": "doctor",
+      "phone": "+92 301 4127846",
+      "address": "Kasur road, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 09:30"
+      ],
       "rating": 4.8,
-      "distance_miles": 3.1,
-      "simulated_latency_s": 2.2
+      "distance_miles": 0.7,
+      "place_id": "ChIJNx86IyxPGDkR8hOr_GFePcM",
+      "open_now": true
     },
     {
-      "name": "Family Dental",
-      "service": "dentist",
-      "phone": "+15550103",
-      "availability": ["2026-02-08 13:00"],
-      "rating": 4.2,
+      "name": "Hafiz muttib",
+      "service": "doctor",
+      "phone": "+92 300 8058914",
+      "address": "536X+4JQ, Pattoki - Raiwind Road, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 11:30",
+        "2026-02-08 13:30",
+        "2026-02-08 15:30"
+      ],
+      "rating": 5,
+      "distance_miles": 0.9,
+      "place_id": "ChIJneNgh3ZPGDkRpi9GGqTZEhk",
+      "open_now": true
+    },
+    {
+      "name": "Hakeem khaleel Ullah Ibraheem",
+      "service": "doctor",
+      "phone": "+92 300 8058914",
+      "address": "536X+3JG, Pattoki - Raiwind Road, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 09:30",
+        "2026-02-08 13:00",
+        "2026-02-08 14:00",
+        "2026-02-08 14:30"
+      ],
+      "rating": 0.0,
+      "distance_miles": 0.9,
+      "place_id": "ChIJad9jwkJPGDkRWjVx0gqglhQ",
+      "open_now": null
+    },
+    {
+      "name": "Maqsood Homeopathic clinic",
+      "service": "doctor",
+      "phone": "+92 306 5036160",
+      "address": "kot taj deen, near sher-e-rabani masjid, Kot Radha Kishan",
+      "availability": [
+        "2026-02-08 15:00",
+        "2026-02-08 16:30"
+      ],
+      "rating": 5,
       "distance_miles": 1.2,
-      "simulated_latency_s": 1.8
-    },
-    {
-      "name": "AutoFix Garage",
-      "service": "auto_repair",
-      "phone": "+15550201",
-      "availability": ["2026-02-08 11:00", "2026-02-08 15:00"],
-      "rating": 4.4,
-      "distance_miles": 4.5,
-      "simulated_latency_s": 1.6
+      "place_id": "ChIJK3o79kX_GDkR7k8rpYFkoPY",
+      "open_now": true
     }
   ]
 }

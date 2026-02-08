@@ -98,7 +98,7 @@ const ResultsPanel = ({ ranked, best, onSelect }) => {
                         Rating: {result.components.rating?.toFixed(2)}
                       </span>
                       <span className="breakdown-item">
-                        Distance: {result.components.distance?.toFixed(2)}
+                        Distance: {result.components.distance?.toFixed(2)} miles
                       </span>
                     </div>
                   </div>

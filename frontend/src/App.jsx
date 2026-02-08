@@ -6,6 +6,7 @@ import PreferencesPanel from './components/PreferencesPanel';
 import SwarmVisualization from './components/SwarmVisualization';
 import ResultsPanel from './components/ResultsPanel';
 import ConfirmationCard from './components/ConfirmationCard';
+import LocationPicker from './components/LocationPicker';
 import { startSwarm } from './services/swarmService';
 import './styles/App.css';
 
@@ -28,6 +29,7 @@ function App() {
       distance_weight: 0.2,
     },
   });
+  const [location, setLocation] = useState(null); // { lat, lng }
   const [providers, setProviders] = useState([]);
   const [swarmResults, setSwarmResults] = useState([]);
   const [rankedResults, setRankedResults] = useState([]);
@@ -85,6 +87,7 @@ function App() {
         time_window: formData.time_window,
         preferences: formData.preferences,
         limit: 5, // Limit to 5 providers for demo
+        ...(location && { lat: location.lat, lng: location.lng }),
       };
 
       const results = [];
@@ -116,7 +119,7 @@ function App() {
         },
         onError: (err) => {
           setIsSwarmActive(false);
-          setError(err.message || 'An error occurred during the swarm call. Please try again.');
+          setError(err.error || 'An error occurred during the swarm call. Please try again.');
           console.error('Swarm error:', err);
           // Show results even if there were errors, if we have any
           if (swarmResults.length > 0) {
@@ -126,7 +129,7 @@ function App() {
       });
     } catch (err) {
       setIsSwarmActive(false);
-      setError(err.message || 'Failed to start swarm. Please check your connection and try again.');
+      setError(err.error || 'Failed to start swarm. Please check your connection and try again.');
       console.error('Swarm error:', err);
       setCurrentView(VIEWS.INPUT);
     }
@@ -154,6 +157,7 @@ function App() {
         distance_weight: 0.2,
       },
     });
+    setLocation(null);
     setSwarmResults([]);
     setRankedResults([]);
     setBestResult(null);
@@ -194,6 +198,11 @@ function App() {
                 onChange={handleServiceChange}
               />
 
+              <LocationPicker
+                value={location}
+                onChange={setLocation}
+              />
+
               <TimeWindowSelector
                 value={formData.time_window}
                 onChange={handleTimeWindowChange}
@@ -221,7 +230,7 @@ function App() {
                 <button
                   className="start-swarm-button"
                   onClick={handleStartSwarm}
-                  disabled={!formData.time_window}
+                  disabled={!formData.time_window || !location}
                 >
                   Start Swarm Call
                 </button>
