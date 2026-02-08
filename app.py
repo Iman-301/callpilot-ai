@@ -74,6 +74,7 @@ def swarm_stream():
     payload = request.get_json(silent=True) or {}
     service = payload.get("service")
     limit = payload.get("limit")
+    print("Payload received for streaming swarm:", payload)
     providers = filter_providers(load_providers(), service, limit)
     if not providers:
         return jsonify({"error": "no providers available"}), 400
